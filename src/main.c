@@ -47,4 +47,68 @@ enum {
     FL_NEG = 1 << 2, // negative
 };
 
+int main(int argc, char* argv[]) {
+    // TODO: load arguments
+    
+    enum { PC_START = 0x3000 };
+    reg[R_PC] = PC_START;
 
+    int running = 1;
+    while (running) {
+        // fetch the instruction and increment PC 
+        uint16_t instr = mem_read(reg[R_PC]++);
+        // Each instruction is 16 bits long, with the left 4 bits
+        // storing the opcode
+        uint16_t op = instr >> 12;
+
+        switch (op) {
+            case OP_ADD:
+                // TODO: implement
+                break;
+            case OP_AND:
+                // TODO: implement
+                break;
+            case OP_NOT:
+                // TODO: implement
+                break;
+            case OP_BR:
+                // TODO: implement
+                break;
+            case OP_JMP:
+                // TODO: implement
+                break;
+            case OP_JSR:
+                // TODO: implement
+                break;
+            case OP_LD:
+                // TODO: implement
+                break;
+            case OP_LDI:
+                // TODO: implement
+                break;
+            case OP_LDR:
+                // TODO: implement
+                break;
+            case OP_LEA:
+                // TODO: implement
+                break;
+            case OP_ST:
+                // TODO: implement
+                break;
+            case OP_STI:
+                // TODO: implement
+                break;
+            case OP_STR:
+                // TODO: implement
+                break;
+            case OP_TRAP:
+                // TODO: implement
+                break;
+            case OP_RES:
+            case OP_RTI:
+            default:
+                // TODO: implement bas opcode
+                break;
+        }
+    }
+}
