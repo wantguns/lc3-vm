@@ -59,6 +59,29 @@ enum {
     TRAP_HALT = 0x25,   // halt the program
 };
 
+// memory mapped registers 
+enum {
+    MR_KBSR = 0xFE00,   // keyboard status
+    MR_KBDR = 0xFE02    // keyboard data
+};
+
+void mem_write(uint16_t addr, uint16_t val) {
+    memory[addr] = val;
+}
+
+uint16_t mem_read(uint16_t addr) {
+    if (addr == MR_KBSR) {
+        if (check_key()) {
+            memory[MR_KBSR] = (1 << 15);
+            memory[MR_KBDR] = getchar();
+        } else {
+            memory[MR_KBSR] = 0;
+        }
+    }
+
+    return memory[addr];
+}
+
 // LC3 is big endian, we need to convert to little endian 
 uint16_t swap16(uint16_t x) {
     return (x << 8) | (x >> 8);
