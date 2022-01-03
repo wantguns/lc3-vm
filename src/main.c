@@ -2,6 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// unix
+#include <signal.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/termios.h>
+
 // 65536 memory locations
 uint16_t memory[UINT16_MAX];
 
@@ -64,6 +70,44 @@ enum {
     MR_KBSR = 0xFE00,   // keyboard status
     MR_KBDR = 0xFE02    // keyboard data
 };
+
+// Unix specific code 
+uint16_t check_key()
+{
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+    return select(1, &readfds, NULL, NULL, &timeout) != 0;
+}
+
+
+// Input Buffering
+struct termios original_tio;
+
+void disable_input_buffering()
+{
+    tcgetattr(STDIN_FILENO, &original_tio);
+    struct termios new_tio = original_tio;
+    new_tio.c_lflag &= ~ICANON & ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+}
+
+void restore_input_buffering()
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, &original_tio);
+}
+
+// Handle Interrupt
+void handle_interrupt(int signal)
+{
+    restore_input_buffering();
+    printf("\n");
+    exit(-2);
+}
 
 void mem_write(uint16_t addr, uint16_t val) {
     memory[addr] = val;
@@ -158,6 +202,10 @@ int main(int argc, char* argv[]) {
             exit(1);
         }
     }
+
+    // Setup
+    signal(SIGINT, handle_interrupt);
+    disable_input_buffering();
     
     enum { PC_START = 0x3000 };
     reg[R_PC] = PC_START;
@@ -337,7 +385,7 @@ int main(int argc, char* argv[]) {
                     uint16_t baseR = (instr >> 6) & 0x7;
                     uint16_t pc_offset = sign_extend(instr & 0x3F, 6);
 
-                    mem_write(reg[baseR] + pc_offset), reg[sr]);
+                    mem_write(reg[baseR] + pc_offset, reg[sr]);
                 }
                 break;
             case OP_TRAP:
@@ -417,4 +465,7 @@ int main(int argc, char* argv[]) {
                 break;
         }
     }
+
+    // Shutdown
+    restore_input_buffering();
 }
