@@ -59,6 +59,42 @@ enum {
     TRAP_HALT = 0x25,   // halt the program
 };
 
+// LC3 is big endian, we need to convert to little endian 
+uint16_t swap16(uint16_t x) {
+    return (x << 8) | (x >> 8);
+}
+
+// read from file 
+void read_image_file(FILE* file) {
+    // origin is the first address to check.
+    // it tells us where our program should start.
+    // hence it is hardcoded
+    uint16_t origin;
+    fread(&origin, sizeof(origin), 1, file);
+    origin = swap16(origin);
+
+    // we know the maximum file size (the memory array), we can be done
+    // with a single fread.
+    uint16_t max_read = UINT16_MAX - origin;
+    uint16_t* p = memory + origin;
+    size_t read = fread(p, sizeof(uint16_t), max_read, file);
+
+    // swap to little endian 
+    while (read-- > 0) {
+        *p = swap16(*p);
+        ++p;
+    }
+}
+
+int read_image(const char* image_path) {
+    FILE* file = fopen(image_path, "rb");
+    if (!file) return 0;
+    read_image_file(file);
+    fclose(file);
+
+    return 1;
+}
+
 // sign_extend for certain operations when operation occurs in immediate
 // mode
 uint16_t sign_extend(uint16_t x, int bit_count) {
