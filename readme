@@ -1,18 +1,21 @@
 LC-3 Virtual Machine
 ====================
 
-This is a proof-of-concept Virtual Machine for the LC-3 Architecture written in C
+This is a proof-of-concept Virtual Machine for the LC-3 Architecture
+written in C
 
 You can play with it on Unix like operating systems:
 
     $ make
 
-The default game is 2048, but you can essentially load any object file for the LC-3Architecture.
+The default game is 2048, but you can essentially load any object file
+for the LC-3Architecture.
 
 
 Credits
 -------
 
-This PoC was made by following the excellent literate progam by Justin Meiners -
+This PoC was made by following the excellent literate progam by Justin
+Meiners --
     https://justinmeiners.github.io/lc3-vm
 
