@@ -1,4 +1,6 @@
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // 65536 memory locations
 uint16_t memory[UINT16_MAX];
@@ -47,8 +49,56 @@ enum {
     FL_NEG = 1 << 2, // negative
 };
 
+// Trap codes
+enum {
+    TRAP_GETC = 0x20,
+    TRAP_OUT = 0x21,
+    TRAP_PUTS = 0x22,
+    TRAP_IN = 0x23,
+    TRAP_PUTSP = 0x24,
+    TRAP_HALT = 0x25,
+};
+
+// sign_extend for certain operations when operation occurs in immediate
+// mode
+uint16_t sign_extend(uint16_t x, int bit_count) {
+    if (x >> (bit_count - 1) & 1) {
+        // if the first bit is 1 
+        // or the number is negative 
+
+        x |= (0xFFFF << bit_count);
+
+        // lets assume we want to extend 11111 (-1 in 5 bits) to 16 bits 
+        // the operation which occurs is 11111 OR 1111111111110000
+        // which gives us 1111111111111111, which is -1 in 16 bits
+    }
+
+    return x;
+}
+
+void update_flags (uint16_t r) {
+    if (reg[r] == 0)
+        reg[R_COND] = FL_ZRO;
+    else if (reg[r] >> 15)
+        reg[R_COND] = FL_NEG;
+    else 
+        reg[R_COND] = FL_POS;
+}
+
 int main(int argc, char* argv[]) {
-    // TODO: load arguments
+    // load arguments
+    if (argc < 2) {
+        // show usage string 
+        printf("lc3 [image-file1] ...\n");
+        exit(2);
+    }
+
+    for (int j = 1; j < argc; ++j) {
+        if (!read_image(argv[j])) {
+            printf("failed to load image: %s\n", argv[j]);
+            exit(1);
+        }
+    }
     
     enum { PC_START = 0x3000 };
     reg[R_PC] = PC_START;
@@ -63,51 +113,183 @@ int main(int argc, char* argv[]) {
 
         switch (op) {
             case OP_ADD:
-                // TODO: implement
+                {
+                    // Destination register (DR)
+                    // shifting 9 bits and then and-ing with 0b111 to
+                    // get 3 bits
+                    uint16_t r0 = (instr >> 9) & 0x7;
+
+                    // first operand (SR1)
+                    uint16_t r1 = (instr >> 6) & 0x7;
+
+                    // Immediate mode flag
+                    uint16_t imm_flag = (instr >> 5) & 0x1;
+
+                    if (imm_flag) {
+                        // extract the imm5 operand, and extend it to 16
+                        // bits if it was negative.
+                        uint16_t imm5 = sign_extend(instr & 0x1F, 5);
+
+                        reg[r0] = reg[r1] + imm5;
+                    } else {
+                        // extract the right 3 bits
+                        uint16_t r2 = instr & 0x7;
+                        reg[r0] = reg[r1] + reg[r2];
+                    }
+
+                    update_flags(r0);
+                }
                 break;
             case OP_AND:
-                // TODO: implement
+                {
+                    // Destination register (DR)
+                    // shifting 9 bits and then and-ing with 0b111 to
+                    // get 3 bits
+                    uint16_t r0 = (instr >> 9) & 0x7;
+
+                    // first operand (SR1)
+                    uint16_t r1 = (instr >> 6) & 0x7;
+
+                    // Immediate mode flag
+                    uint16_t imm_flag = (instr >> 5) & 0x1;
+
+                    if (imm_flag) {
+                        // extract the imm5 operand, and extend it to 16
+                        // bits if it was negative.
+                        uint16_t imm5 = sign_extend(instr & 0x1F, 5);
+
+                        reg[r0] = reg[r1] & imm5;
+                    } else {
+                        // extract the right 3 bits
+                        uint16_t r2 = instr & 0x7;
+                        reg[r0] = reg[r1] & reg[r2];
+                    }
+
+                    update_flags(r0);
+                }
                 break;
             case OP_NOT:
-                // TODO: implement
+                {
+                    // destination register (dr)
+                    uint16_t dr = (instr >> 9) & 0x7;
+                    // source register (sr)
+                    uint16_t sr = (instr >> 6) & 0x7;
+
+                    reg[dr] = ~reg[sr];
+                    update_flags(dr);
+                }
                 break;
             case OP_BR:
-                // TODO: implement
+                {
+                    uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);
+                    uint16_t cond_flag = (instr >> 9) & 0x7;
+
+                    if (cond_flag & reg[R_COND])
+                        reg[R_PC] += pc_offset;
+                }
                 break;
             case OP_JMP:
-                // TODO: implement
+                { 
+                    // also handle RET 
+                    uint16_t jump_reg = (instr >> 6) & 0x7;
+                    reg[R_PC] = reg[jump_reg];
+                }
                 break;
             case OP_JSR:
-                // TODO: implement
+                {
+                    reg[R_R7] = reg[R_PC];
+                    
+                    uint16_t indir_flag = (instr >> 11) & 0x1;
+                    if (indir_flag) {
+                        uint16_t pc_offset = instr & 0x7FF;
+                        pc_offset = sign_extend(pc_offset, 11);
+
+                        reg[R_PC] += pc_offset;
+                    } else {
+                        uint16_t baseR = (instr >> 6) & 0x7;
+                        reg[R_PC] = reg[baseR];
+                    }
+                }
                 break;
             case OP_LD:
-                // TODO: implement
+                {
+                    uint16_t dr = (instr >> 9) & 0x7;
+                    uint16_t pc_offset = sign_extend(instr & 0xFF, 8);
+
+                    reg[dr] = mem_read(reg[R_PC] + pc_offset);
+
+                    update_flags(dr);
+                }
                 break;
             case OP_LDI:
-                // TODO: implement
+                {
+                    // destination register
+                    uint16_t r0 = (instr >> 9) & 0x7;
+
+                    // PCoffset9
+                    uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);
+
+                    // Add pc_offset to current PC, look at that memory
+                    // location to get the final address.
+                    reg[r0] = mem_read(mem_read(reg[R_PC] + pc_offset));
+                    update_flags(r0);
+                }
                 break;
             case OP_LDR:
-                // TODO: implement
+                {
+                    uint16_t dr = (instr >> 9) & 0x7;
+                    uint16_t baseR = (instr >> 6) & 0x7;
+                    uint16_t pc_offset = sign_extend(instr & 0x3F, 6);
+
+                    reg[dr] = mem_read(reg[baseR] + pc_offset);
+
+                    update_flags(dr);
+                }
                 break;
             case OP_LEA:
-                // TODO: implement
+                {
+                    uint16_t dr = (instr >> 9) & 0x7;
+                    uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);
+
+                    reg[dr] = reg[R_PC] + pc_offset;
+                    
+                    update_flags(dr);
+                }
                 break;
             case OP_ST:
-                // TODO: implement
+                {
+                    uint16_t sr = (instr >> 9) & 0x7;
+                    uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);
+
+                    mem_write(reg[R_PC] + pc_offset, reg[sr]);
+                }
                 break;
             case OP_STI:
-                // TODO: implement
+                {
+                    uint16_t sr = (instr >> 9) & 0x7;
+                    uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);
+
+                    mem_write(mem_read(reg[R_PC] + pc_offset), reg[sr]);
+                }
                 break;
             case OP_STR:
-                // TODO: implement
+                {
+                    uint16_t sr = (instr >> 9) & 0x7;
+                    uint16_t baseR = (instr >> 6) & 0x7;
+                    uint16_t pc_offset = sign_extend(instr & 0x3F, 6);
+
+                    mem_write(reg[baseR] + pc_offset), reg[sr]);
+                }
                 break;
             case OP_TRAP:
                 // TODO: implement
                 break;
             case OP_RES:
+                abort();
             case OP_RTI:
+                abort();
             default:
-                // TODO: implement bas opcode
+                // TODO: implement base opcode
                 break;
         }
     }
